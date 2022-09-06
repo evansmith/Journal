@@ -17,6 +17,23 @@ app.MapGet("/journals", async (JournalDb db) =>
 app.MapGet("entries", async (JournalDb db) => 
     await db.Entries.ToListAsync());
 
+app.MapGet("/journals/{id}", async (int id, JournalDb db) =>
+    await db.Journals.Include(x => x.Entries).FirstOrDefaultAsync(p => p.Id == id)
+        is Journal journal
+        ? Results.Ok(new JournalDto{
+            Id = journal.Id,
+            Name = journal.Name,
+            Entries = journal.Entries.Select(x => new EntryDto{
+                Id = x.Id,
+                Title = x.Title, 
+                Content = x.Content,
+                JournalId = x.JournalId
+            }).ToList()
+        }) : Results.NotFound());
+
+    
+
+
 app.MapGet("/journals/{id}/entries", async (int id, JournalDb db) =>
 {
     var bob = await db.Journals.FindAsync(id);
@@ -43,21 +60,15 @@ app.MapPost("/journals/{journalId}/entries", async (int journalId, Entry entry, 
 {
     var journal = await db.Journals.FindAsync(journalId);
     if (journal is null) return Results.NotFound();
-     Console.WriteLine($"this is the journal: {journal.Id}");
     var entryToCreate = new Entry {
         Journal = journal,
         Title = entry.Title,
         Content = entry.Content
     };
-    Console.WriteLine($"this is the journal: {journal}");
-    Console.WriteLine($"entry to create journal id {entryToCreate.Journal.Id}");
     db.Add(entryToCreate);
     await db.SaveChangesAsync();
     entry.Id = entryToCreate.Id;
     entry.JournalId = entryToCreate.JournalId;
-    Console.WriteLine($"entry id {entry.Id}");
-     //Console.WriteLine($"entry to create journal id {entry.JournalId}");
-    //Console.WriteLine($"entry journal id {entry.Journal.Id}");
     return Results.Created($"/journals/{journalId}/entries/{entry.Id}", entry);
 });
 
@@ -67,7 +78,7 @@ class Journal
 {
     public int Id { get; set; }
     public string? Name { get; set; }
-    public List<Entry>? Entries {get; set;}
+    public virtual ICollection<Entry>? Entries {get; set;}
 }
 
 class Entry
@@ -76,7 +87,7 @@ class Entry
     public string? Title {get; set;}
     public string? Content {get; set;}
     public int JournalId {get; set;}
-    public Journal Journal {get; set;}
+    public virtual Journal Journal {get; set;}
 
 }
 
@@ -84,7 +95,7 @@ class JournalDto
 {
     public int Id { get; set; }
     public string? Name { get; set; }
-    public List<EntryDto>? Entries {get; set;}
+    public virtual ICollection<EntryDto>? Entries {get; set;}
 }
 
 class EntryDto
